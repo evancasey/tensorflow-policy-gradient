@@ -39,7 +39,7 @@ class CEM(object):
         self.elite_frac = elite_frac
         self.n_iter = n_iter
 
-    def train(self):
+    def train(self, render = False):
         """
         Given an initial distribution vector of w_i, compute a new distribution
         vector via the cross-entropy method.
@@ -49,10 +49,11 @@ class CEM(object):
         
         # Additional param for bias
         distrib_means = np.zeros(num_features + 1)
-        distrib_vars = np.full((num_features + 1,), 100)
+        distrib_vars = np.full((num_features + 1,), .1)
+        #distrib_means = np.random.randn(num_features + 1)
+        #distrib_vars = np.square(np.ones_like(distrib_means) * 0.1)
 
         perf_hist = []
-
         for i in xrange(self.n_iter):
 
             # Step 1: sample 'batch_size' w_i's from initial distribution
@@ -60,7 +61,8 @@ class CEM(object):
                     distrib_vars)
 
             # Step 2: perform rollout and evaluate each w_i (eg. call score_policy)
-            batch_scores = np.apply_along_axis(self.rollout, 1, batch_weights)
+            batch_scores = np.apply_along_axis(self.rollout, 1, batch_weights,
+                    render)
 
             perf_hist.append(np.mean(batch_scores, 0))
 
@@ -68,12 +70,13 @@ class CEM(object):
             top_weights = self._top_weights(batch_weights, batch_scores)
 
             # Step 4: fit a new Gaussian distrib. over the top scoring w_i's
+            noise = max(5 - i / 10, 0)
             distrib_means = np.mean(top_weights, 0)
-            distrib_vars = np.var(top_weights, 0)
+            distrib_vars = np.var(top_weights, 0) + noise
 
         return perf_hist
 
-    def rollout(self, w):
+    def rollout(self, w, render):
         """
         Plays one episode to `max_num_steps` or a terminal state, given a weight vector w. 
 
@@ -94,7 +97,8 @@ class CEM(object):
             if is_terminal:
                 break
 
-            env.render()
+            if render:
+                env.render()
 
         return total_reward
 
@@ -108,7 +112,7 @@ class CEM(object):
         `distrib_means` and `distrib_vars`
         """
 
-        distrib_cov = np.diag(distrib_vars)
+        distrib_cov = np.diag(np.sqrt(distrib_vars))
         return np.random.multivariate_normal(distrib_means, distrib_cov, batch_size)
 
     def _top_weights(self, batch_weights, batch_scores):
@@ -118,12 +122,9 @@ class CEM(object):
         Returns a 2d array of the top performing weight vectors.
         """
 
-        # Join weights with their resp. scores, then sort along the last axis
-        weights_with_score = np.hstack((batch_weights, np.array([batch_scores]).T))
-        sorted_weights_with_score = weights_with_score[weights_with_score[:,-1].argsort()]
-
-        top_indices = int(self.batch_size * self.elite_frac)
-        return sorted_weights_with_score[:-top_indices,:-1]
+        n_elite = int(np.round(self.batch_size * self.elite_frac))
+        elite_inds = batch_scores.argsort()[::-1][:n_elite]
+        return batch_weights[elite_inds]
 
     def _plot_hist(self, perf_hist):
         """
@@ -135,6 +136,7 @@ class CEM(object):
         plt.show()
 
 if __name__ == "__main__":
+    np.random.seed(0)
     env = gym.make('CartPole-v0')
     env.monitor.start(EXPERIMENT_DIR, force=True)
 
@@ -143,10 +145,12 @@ if __name__ == "__main__":
     cem = CEM(num_features = num_features, \
         batch_size = 30, \
         max_num_steps = 200, \
-        elite_frac = .1, \
+        elite_frac = .2, \
         n_iter = 10)
 
     perf_hist = cem.train()
+    print(perf_hist)
+    #cem._plot_hist(perf_hist)
 
 
 
