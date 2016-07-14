@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import division
+
 import gym
 import numpy as np
 import matplotlib.pyplot as plt
@@ -45,15 +49,20 @@ class CEM(object):
         
         # Additional param for bias
         distrib_means = np.zeros(num_features + 1)
-        distrib_vars = np.ones(num_features + 1)
+        distrib_vars = np.full((num_features + 1,), 100)
 
-        for _ in xrange(self.n_iter):
+        perf_hist = []
+
+        for i in xrange(self.n_iter):
+
             # Step 1: sample 'batch_size' w_i's from initial distribution
             batch_weights = self._sample_weights(self.batch_size, distrib_means,
                     distrib_vars)
 
             # Step 2: perform rollout and evaluate each w_i (eg. call score_policy)
             batch_scores = np.apply_along_axis(self.rollout, 1, batch_weights)
+
+            perf_hist.append(np.mean(batch_scores, 0))
 
             # Step 3: select the top 'elite_frac' w_i's 
             top_weights = self._top_weights(batch_weights, batch_scores)
@@ -62,11 +71,7 @@ class CEM(object):
             distrib_means = np.mean(top_weights, 0)
             distrib_vars = np.var(top_weights, 0)
 
-            print distrib_means
-            print distrib_vars
-
-        import ipdb; ipdb.set_trace()
-        pass
+        return perf_hist
 
     def rollout(self, w):
         """
@@ -75,12 +80,12 @@ class CEM(object):
         Returns a scalar of the reward sum of the episode.
         """
 
-        theta = w
         observation = env.reset() 
         cart_position, pole_angle, cart_velocity, angle_rate_of_change = observation
+
         total_reward = 0.0
-        for _ in xrange(self.max_num_steps -1):
-            policy = BinaryLinearModel(theta[:-1], theta[-1])
+        for _ in xrange(self.max_num_steps - 1):
+            policy = BinaryLinearModel(w[:-1], w[-1])
             action = policy.act(observation)
             observation, reward, is_terminal, info = env.step(action)
 
@@ -88,6 +93,8 @@ class CEM(object):
 
             if is_terminal:
                 break
+
+            env.render()
 
         return total_reward
 
@@ -97,8 +104,10 @@ class CEM(object):
         parameterized by distrib_means[i] and distrib_vars[i], where i is the
         column index of the weight vector.
 
-        Returns a 2d array of weight vectors, where each dimension is sampled from `distrib_means` and `distrib_vars`
+        Returns a 2d array of weight vectors, where each dimension is sampled from 
+        `distrib_means` and `distrib_vars`
         """
+
         distrib_cov = np.diag(distrib_vars)
         return np.random.multivariate_normal(distrib_means, distrib_cov, batch_size)
 
@@ -109,12 +118,21 @@ class CEM(object):
         Returns a 2d array of the top performing weight vectors.
         """
 
-        # Join weights with their resp. scores, then sorts along the last axis
+        # Join weights with their resp. scores, then sort along the last axis
         weights_with_score = np.hstack((batch_weights, np.array([batch_scores]).T))
-        sorted_weights_with_score = np.sort(weights_with_score)
+        sorted_weights_with_score = weights_with_score[weights_with_score[:,-1].argsort()]
 
         top_indices = int(self.batch_size * self.elite_frac)
-        return sorted_weights_with_score[:top_indices,:-1]
+        return sorted_weights_with_score[:-top_indices,:-1]
+
+    def _plot_hist(self, perf_hist):
+        """
+        Plots the performance history.
+        """
+
+        plt.plot(perf_hist)
+        plt.ylabel("Average total reward")
+        plt.show()
 
 if __name__ == "__main__":
     env = gym.make('CartPole-v0')
@@ -123,11 +141,13 @@ if __name__ == "__main__":
     num_features = env.observation_space.shape[0]
 
     cem = CEM(num_features = num_features, \
-        batch_size = 10, \
+        batch_size = 30, \
         max_num_steps = 200, \
-        elite_frac = .2, \
+        elite_frac = .1, \
         n_iter = 10)
 
-    cem.train()
+    perf_hist = cem.train()
+
+
 
 
