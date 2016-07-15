@@ -4,10 +4,7 @@ from __future__ import division
 
 import gym
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Gym params
-EXPERIMENT_DIR = './cartpole-experiment-1'
 
 class BinaryLinearModel(object):
     def __init__(self, w, b):
@@ -27,12 +24,14 @@ class BinaryLinearModel(object):
 
 class CEM(object):
     def __init__(self,
+                 env,
                  num_features, 
                  batch_size, 
                  max_num_steps,
                  elite_frac, 
                  n_iter):
         
+        self.env = env
         self.num_features = num_features
         self.batch_size = batch_size
         self.max_num_steps = max_num_steps
@@ -48,10 +47,8 @@ class CEM(object):
         """
         
         # Additional param for bias
-        distrib_means = np.zeros(num_features + 1)
-        distrib_vars = np.full((num_features + 1,), .1)
-        #distrib_means = np.random.randn(num_features + 1)
-        #distrib_vars = np.square(np.ones_like(distrib_means) * 0.1)
+        distrib_means = np.zeros(self.num_features + 1)
+        distrib_vars = np.full((self.num_features + 1,), .1)
 
         perf_hist = []
         for i in xrange(self.n_iter):
@@ -60,7 +57,7 @@ class CEM(object):
             batch_weights = self._sample_weights(self.batch_size, distrib_means,
                     distrib_vars)
 
-            # Step 2: perform rollout and evaluate each w_i (eg. call score_policy)
+            # Step 2: perform rollout and evaluate each w_i 
             batch_scores = np.apply_along_axis(self.rollout, 1, batch_weights,
                     render)
 
@@ -83,14 +80,14 @@ class CEM(object):
         Returns a scalar of the reward sum of the episode.
         """
 
-        observation = env.reset() 
+        observation = self.env.reset() 
         cart_position, pole_angle, cart_velocity, angle_rate_of_change = observation
 
         total_reward = 0.0
         for _ in xrange(self.max_num_steps - 1):
             policy = BinaryLinearModel(w[:-1], w[-1])
             action = policy.act(observation)
-            observation, reward, is_terminal, info = env.step(action)
+            observation, reward, is_terminal, info = self.env.step(action)
 
             total_reward += reward
 
@@ -98,7 +95,7 @@ class CEM(object):
                 break
 
             if render:
-                env.render()
+                self.env.render()
 
         return total_reward
 
@@ -126,31 +123,6 @@ class CEM(object):
         elite_inds = batch_scores.argsort()[::-1][:n_elite]
         return batch_weights[elite_inds]
 
-    def _plot_hist(self, perf_hist):
-        """
-        Plots the performance history.
-        """
-
-        plt.plot(perf_hist)
-        plt.ylabel("Average total reward")
-        plt.show()
-
-if __name__ == "__main__":
-    np.random.seed(0)
-    env = gym.make('CartPole-v0')
-    env.monitor.start(EXPERIMENT_DIR, force=True)
-
-    num_features = env.observation_space.shape[0]
-
-    cem = CEM(num_features = num_features, \
-        batch_size = 30, \
-        max_num_steps = 200, \
-        elite_frac = .2, \
-        n_iter = 10)
-
-    perf_hist = cem.train()
-    print(perf_hist)
-    #cem._plot_hist(perf_hist)
 
 
 
