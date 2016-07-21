@@ -20,7 +20,7 @@ class Agent(object):
         observation = env.reset()
         cart_position, pole_angle, cart_velocity, angle_rate_of_change = observation
 
-        for step in xrange(max_num_steps - 1):
+        for step in range(max_num_steps - 1):
             observation, reward, is_terminal, info = env.step(action)
 
         pass

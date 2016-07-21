@@ -51,7 +51,7 @@ class CEM(object):
         distrib_vars = np.full((self.num_features + 1,), .1)
 
         perf_hist = []
-        for i in xrange(self.n_iter):
+        for i in range(self.n_iter):
 
             # Step 1: sample 'batch_size' w_i's from initial distribution
             batch_weights = self._sample_weights(self.batch_size, distrib_means,
@@ -84,7 +84,7 @@ class CEM(object):
         cart_position, pole_angle, cart_velocity, angle_rate_of_change = observation
 
         total_reward = 0.0
-        for _ in xrange(self.max_num_steps - 1):
+        for _ in range(self.max_num_steps - 1):
             policy = BinaryLinearModel(w[:-1], w[-1])
             action = policy.act(observation)
             observation, reward, is_terminal, info = self.env.step(action)
