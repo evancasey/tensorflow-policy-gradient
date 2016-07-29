@@ -7,7 +7,8 @@ import numpy as np
 import tensorflow as tf
 
 from agents.cem import CEM
-from networks.linear import BinaryLinearModel
+from networks.linear import LinearModel
+from networks.softmax_linear import SoftmaxLinearModel
 
 # Gym params
 EXPERIMENT_DIR = './cartpole-experiment-1'
@@ -20,15 +21,30 @@ if __name__ == "__main__":
     num_features = env.observation_space.shape[0]
 
     with tf.Session() as sess:
-        binary_network = BinaryLinearModel(sess, num_features)
+        linear_network = LinearModel(sess, num_features)
         cem = CEM(num_features = num_features, \
             sess = sess, \
-            pred_network = binary_network, \
+            pred_network = linear_network, \
             env = env, \
             batch_size = 30, \
             max_num_steps = 200, \
             elite_frac = .2, \
-            n_iter = 50)
+            n_iter = 20)
 
         cem.train()
         print(cem.perf_hist)
+
+        softmax_linear_network = SoftmaxLinearModel(sess, num_features)
+        cem = CEM(num_features = num_features, \
+            sess = sess, \
+            pred_network = softmax_linear_network, \
+            env = env, \
+            batch_size = 30, \
+            max_num_steps = 200, \
+            elite_frac = .2, \
+            n_iter = 20)
+
+        cem.train()
+        print(cem.perf_hist)
+
+

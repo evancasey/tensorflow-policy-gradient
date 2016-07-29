@@ -95,8 +95,9 @@ class CEM(object):
         Updates the network with the weight vector `w`. This side effects the
         existing `pred_network`.
         """
+
         assign_w = self.pred_network.w.assign(w[:-1].reshape(4,1))
-        assign_b = self.pred_network.b.assign([[w[-1]]])
+        assign_b = self.pred_network.b.assign([w[-1]])
 
         ops = tf.group(assign_w, assign_b, name="update")
         self.sess.run(ops)

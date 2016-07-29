@@ -1,11 +1,11 @@
 import tensorflow as tf
 import numpy as np
 
-class LinearModel(object):
+class SoftmaxLinearModel(object):
     def __init__(self, 
                  sess,
                  num_features,
-                 name = "BinaryLinear"):
+                 name = "SoftmaxLinear"):
 
         self.sess = sess
 
@@ -19,7 +19,8 @@ class LinearModel(object):
             self.b = tf.Variable(tf.random_normal([1]), name="bias")
 
             # Create the linear model
-            self.model = tf.nn.bias_add(tf.matmul(self.inputs, self.w), self.b)
+            self.model = tf.sigmoid(tf.nn.bias_add(
+                tf.matmul(self.inputs, self.w), self.b))
 
     def calc_action(self, observation):
         """
@@ -27,5 +28,5 @@ class LinearModel(object):
 
         Returns a binary action.
         """
-        pred_value = self.model.eval({self.inputs: observation}, session=self.sess)
-        return int(pred_value < 0)
+        a_prob = self.model.eval({self.inputs: observation}, session=self.sess)
+        return 1 if np.random.uniform() < a_prob else 0
