@@ -47,7 +47,7 @@ class CEM(object):
             batch_weights = self._sample_weights(self.batch_size, distrib_means,
                     distrib_vars)
 
-            # Step 2: perform rollout and evaluate each w_i 
+            # Step 2: perform rollout on each w_i 
             batch_scores = np.apply_along_axis(self.rollout, 1, batch_weights,
                     render)
 
@@ -65,7 +65,8 @@ class CEM(object):
 
     def rollout(self, w, render):
         """
-        Plays one episode to `max_num_steps` or a terminal state, given a weight vector w. 
+        Plays one episode to `max_num_steps` or a terminal state, given a 
+        weight vector w. 
 
         Returns a scalar of the reward sum of the episode.
         """
