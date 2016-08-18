@@ -45,6 +45,7 @@ class PolicyGradient(object):
             processed_paths = self.process_samples(paths)
 
             # Step 3: Update our policy network
+            self.optimize_policy(paths)
 
             pass
 
@@ -76,9 +77,7 @@ class PolicyGradient(object):
         for _ in xrange(self.max_num_steps - 1):
             states.append(observation)
 
-            prob = self.policy.predict(observation.reshape(1,4))[0][0]
-            action = 0 if np.random.uniform(0,1) < prob else 1
-
+            action = self.policy.calc_action(observation)
             observation, reward, is_terminal, info = self.env.step(action)
 
             actions.append(action)
@@ -96,31 +95,34 @@ class PolicyGradient(object):
 
     def process_samples(self, paths):
         '''
-        Compute advantage for each path (the difference between the future reward of each action and the baseline's prediction) and fit the baseline network with the discounted reward.
+        Compute advantage for each path (the difference between the future
+        discount reward of each action and the baseline's prediction) and fit 
+        the baseline network with the discounted rewards.
 
-        Returns a list of paths containing advantages.
+        Returns a list of paths containing advantages and returns.
         '''
         
         baselines = []
         returns = []
         for path in paths:
-            path_baselines = np.append([self.baseline.predict(state.reshape(1,4)) for state in
-                path["states"]], 0)
+            path_baselines = np.append([self.baseline.calc_value(state) for \
+                    state in path["states"]], 0)
             deltas = path["rewards"] + \
                     self.algo_discount * path_baselines[1:] - \
                      path_baselines[:-1]
 
-            path["advantages"] = utils.discount_cum_sum(deltas,
+            path["advantages"] = utils.discount_cum_sum(deltas, \
                     self.algo_discount * self.gae_lambda)
-            path["returns"] = utils.discount_cum_sum(path["rewards"],
+            path["returns"] = utils.discount_cum_sum(path["rewards"], \
                     self.algo_discount)
 
             baselines.append(path_baselines[:-1])
             returns.append(path["returns"])
 
-        # TODO: update value network 
-        return paths
+        # fit baseline network
+        self.baseline.fit(path["states"], np.expand_dims(path["returns"], 1))
 
+        return paths
 
     def optimize_policy(self, processed_paths):
         '''

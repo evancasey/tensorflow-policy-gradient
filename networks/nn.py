@@ -9,6 +9,7 @@ class FullyConnectedNN(object):
 
         self.sess = sess
         self.net_dims = net_dims
+        self.name = name
 
         with tf.variable_scope(name):
 
@@ -35,7 +36,9 @@ class FullyConnectedNN(object):
 
     def predict(self, obs):
         '''
-        Do forward prop and return the values of the output layer.
+        Do forward prop and return the values of the output layer for a single
+        observation vector
         '''
 
-        return self.sess.run(self.layers[-1], feed_dict = {self.inputs: obs})
+        return self.sess.run(self.layers[-1], feed_dict = {self.inputs: \
+            obs.reshape(1, self.net_dims[0]) })
