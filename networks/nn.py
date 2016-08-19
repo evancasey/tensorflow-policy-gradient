@@ -4,17 +4,15 @@ import numpy as np
 class FullyConnectedNN(object):
     def __init__(self,
                  sess,
-                 net_dims,
-                 name = "FullyConnected"):
+                 net_dims):
 
         self.sess = sess
         self.net_dims = net_dims
-        self.name = name
 
-        with tf.variable_scope(name):
+        with tf.variable_scope("id"):
 
             # construct input, weights, and biases
-            self.inputs = tf.placeholder(tf.float32, shape=[None, self.net_dims[0]], name="inputs")
+            self.inputs = tf.placeholder("float", shape=[None, self.net_dims[0]], name="inputs")
             self.w = [tf.Variable(tf.random_normal([self.net_dims[i], \
                 self.net_dims[i+1]]), name="weights") for i in range(len(self.net_dims) - 1)]
             self.b = [tf.Variable(tf.random_normal([self.net_dims[i]]), \

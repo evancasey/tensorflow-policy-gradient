@@ -22,19 +22,21 @@ if __name__ == "__main__":
     num_features = env.observation_space.shape[0]
 
     with tf.Session() as sess:
-        action_network = FullyConnectedNN(sess = sess, net_dims = [num_features, 
-            10, 1])
-        value_network = FullyConnectedNN(sess = sess, net_dims = [num_features,
-            10, 1])
+        action_network = FullyConnectedNN(
+                sess = sess, 
+                net_dims = [num_features, 10, 2])
+        value_network = FullyConnectedNN(
+                sess = sess, 
+                net_dims = [num_features, 10, 2])
 
         pg = PolicyGradient(env = env, \
             sess = sess, \
             policy = BinaryMLPPolicy(action_network), \
             baseline = MLPBaseline(value_network), \
             num_features = num_features, \
-            batch_size = 30, \
+            batch_size = 10, \
             max_num_steps = 200, \
-            n_iter = 20, \
+            n_iter = 100, \
             algo_discount = .1, \
             gae_lambda = .1)
 

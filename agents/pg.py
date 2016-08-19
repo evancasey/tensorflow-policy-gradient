@@ -32,6 +32,9 @@ class PolicyGradient(object):
         self.gae_lambda = gae_lambda
         self.perf_hist = []
 
+        with tf.variable_scope("id"):
+            self.opt = tf.group(self.policy.opt, self.baseline.opt)
+
     def train(self, render = False):
         
         tf.initialize_all_variables().run()
@@ -41,13 +44,20 @@ class PolicyGradient(object):
             # Step 1: Collect samples with the current policy
             paths = self.obtain_samples(render)
 
-            # Step 2: Compute advantage on each path and train our baseline
-            processed_paths = self.process_samples(paths)
+            # Step 2: Compute advantage on each path 
+            states, actions, advantages, returns = self.process_samples(paths)
 
-            # Step 3: Update our policy network
-            self.optimize_policy(paths)
+            # Step 3: Optimize the value and policy networks jointly
+            _, critic_loss, actor_loss = self.sess.run( \
+                    [self.opt, self.baseline.loss, self.policy.loss], \
+                    feed_dict = {self.policy.network.inputs: states, \
+                                 self.baseline.network.inputs: states, \
+                                 self.baseline.returns : returns, \
+                                 self.policy.actions: actions, \
+                                 self.policy.advantages: advantages})
 
-            pass
+            print("Critic loss: ", critic_loss)
+            print("Actor loss: ", actor_loss)
 
     def obtain_samples(self, render):
         '''
@@ -56,7 +66,7 @@ class PolicyGradient(object):
         Returns a list of paths.
         '''
         paths = []
-        for _ in xrange(self.batch_size - 1):
+        for _ in xrange(self.batch_size):
             path = self.rollout(render)
             paths.append(path)
 
@@ -74,13 +84,18 @@ class PolicyGradient(object):
         cart_position, pole_angle, cart_velocity, angle_rate_of_change = observation
 
         states, actions, rewards = [], [], []
-        for _ in xrange(self.max_num_steps - 1):
+        for _ in xrange(self.max_num_steps):
             states.append(observation)
-
-            action = self.policy.calc_action(observation)
+            
+            if np.random.random() < 0.8:
+                action = self.policy.calc_action(observation)
+            else:
+                action = np.random.randint(0, self.env.action_space.n - 1)
             observation, reward, is_terminal, info = self.env.step(action)
-
-            actions.append(action)
+            
+            one_hot_action = np.zeros(self.env.action_space.n)
+            one_hot_action[action] = 1
+            actions.append(one_hot_action)
             rewards.append(reward)
 
             if is_terminal:
@@ -96,40 +111,31 @@ class PolicyGradient(object):
     def process_samples(self, paths):
         '''
         Compute advantage for each path (the difference between the future
-        discount reward of each action and the baseline's prediction) and fit 
-        the baseline network with the discounted rewards.
+        discount reward of each action and the baseline's prediction).
 
         Returns a list of paths containing advantages and returns.
         '''
         
-        baselines = []
-        returns = []
+
+        states, actions, advantages, returns = [], [], [], []
         for path in paths:
             path_baselines = np.append([self.baseline.calc_value(state) for \
                     state in path["states"]], 0)
             deltas = path["rewards"] + \
-                    self.algo_discount * path_baselines[1:] - \
+                     self.algo_discount * path_baselines[1:] - \
                      path_baselines[:-1]
 
             path["advantages"] = utils.discount_cum_sum(deltas, \
                     self.algo_discount * self.gae_lambda)
             path["returns"] = utils.discount_cum_sum(path["rewards"], \
                     self.algo_discount)
+            
+            states.append(np.array(path["states"]).reshape(-1, 4))
+            actions.append(np.array(path["actions"]).reshape(-1, 2))
+            advantages.append(np.array(path["advantages"]).reshape(-1, 1))
+            returns.append(np.array(path["returns"]).reshape(-1, 1))
 
-            baselines.append(path_baselines[:-1])
-            returns.append(path["returns"])
-
-        # fit baseline network
-        self.baseline.fit(path["states"], np.expand_dims(path["returns"], 1))
-
-        return paths
-
-    def optimize_policy(self, processed_paths):
-        '''
-        Update our policy network in the direction of the score function gradient est. ( grad. log prob(pi) * advantage)
-        '''
-        pass
-                    
-
-
-
+        return np.vstack(states), \
+               np.vstack(actions), \
+               np.vstack(advantages), \
+               np.vstack(returns)
