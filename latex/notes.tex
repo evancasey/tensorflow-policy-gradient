@@ -1,0 +1,216 @@
+\documentclass[11pt]{article}
+\renewcommand{\baselinestretch}{1.05}
+\usepackage{amsmath,amsthm,verbatim,amssymb,amsfonts,amscd, graphicx}
+\usepackage{graphics}
+\topmargin0.0cm
+\headheight0.0cm
+\headsep0.0cm
+\oddsidemargin0.0cm
+\textheight23.0cm
+\textwidth16.5cm
+\footskip1.0cm
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem*{surfacecor}{Corollary 1}
+\newtheorem{conjecture}{Conjecture} 
+\newtheorem{question}{Question} 
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\usepackage{algorithm}
+
+\begin{document}
+
+\title{Reinforcement Learning}
+\author{Evan Casey}
+\maketitle
+\setlength\parindent{0pt}
+
+\section{Problem Setup}
+
+To briefly summarize, at time $t = 0$ we have some initial state $s_0$ and observation $y_0$. We pick an action $a_0$ according to a policy $\pi_\theta(a_0 \mid s_0)$. That is, $\pi_\theta(a_0 \mid s_0)$ is a probability distribution conditioned on $s_t$ and parameterized by $\theta$.
+\\
+
+At time $t>0$ until the end of the episode, we get a new state $s_t$, observation $y_t$, and reward from the previous time step $r_{t-1}$. After some number of episodes (eg. a rollout), we update our policy $\pi_\theta(a_t \mid s_t)$ based on the cumulative reward generated from those episodes.
+
+\section{Cross Entropy}
+
+\subsection{Algorithm}
+Let $d$ be the number of dimensions in the model, $N$ be the batch size of each rollout, and $k$ be the number of iterations of our algorithm.
+
+\begin{algorithm}
+\caption{Cross Entropy}
+\begin{algorithmic}
+\\Initialize $\mu \in \mathbb{R}^d, \sigma \in \mathbb{R}^d$
+\\For iteration $i \in \{0,\ldots,k\}$:
+\\  \hspace*{4} Collect $N$ samples of $\theta_i \sim \mathcal{N}(\mu_i, \text{diag}(\sigma_i))$
+\\ \hspace*{4} Perform a noisy evaluation $f(\theta_i, \zeta_i)$ on each one
+\\ \hspace*{4} Select the top $p\%$ of samples, which we'll call the **elite set**
+\\ \hspace*{4} Fit a Gaussian distribution, with diagonal covariance, to the **elite set**, obtaining a new $\mu$, $\sigma$.
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Convergence}
+
+To analyze the convergence of CEM, we must first consider the Monte Carlo Expectation Maximization (MCEM) problem, which solves a Maximum Likelihood problem of the form:
+\begin{equation}
+\max_\theta \log \int_z p(y,z | \theta)dz
+\end{equation}
+
+where $\theta$ is the parameters of the probabilistic model we are trying to find, $y$ is the observed variables and $z$ is the unobserved variables.
+\\
+
+If $z$ were known, we could use a simple Maximum A Posterior (MAP) estimation with a prior on $\theta$ and be done. However, this is not the case, so we have to use a Monte Carlo estimate of $z$ based on the posterior $p(z|y,\theta)$. The algorithm works by iteratively estimating $E(\log p(y,z|\theta_k) | Y)$ using the sample values of $z$, maximizing it with respect to $\theta_k$, and then using this new $\theta_{k+1}$ in the following timestep. At each timestep $k$, for some sample size $M$ we have:
+\begin{equation}
+E(\log p(y,z|\theta_k)) = \dfrac{1}{M} \sum_{m=1}^M \log p(y, z_m| \theta_k)
+\end{equation}
+
+In each iteration, we're collecting $m$ samples, using these to form a distribution over our latent variables $z$, and then reweighting this distribution by maximizing the likelihood of those samples. This is very similar to CEM except that in CEM and other RL problems we're trying to maximize expected reward and we don't know what samples (actions) lead to a good reward. More precisely, MCEM is maximizing the expected value of the likelihood function $l(\theta;X)$, and in CEM we're maximizing the expected value of the reward function, which we write as:
+\begin{equation}
+R \log p(y,z| \theta_k)
+\end{equation}
+
+where $R = \sum_{m=1}^M r_m$ is the cumulative reward over $M$ samples and $y$, $z$ are both sequences of state-action pairs. Thus, our Monte-Carlo estimation function becomes:
+\begin{equation}
+\dfrac{1}{M} \sum_{m=1}^M \log p(y,z_m| \theta_k) r_m
+\end{equation}
+\\
+
+\begin{comment}
+MM monotically increases expected reward! How??
+
+Theorem: CEM converges to a local maximum of the objective $N(\theta) = E(f(\theta))$
+Theorem: CEM does not converge to a local maximum of the objective $N(\theta) = E_{\zeta}(f(\theta,\zeta))$
+\end{comment}
+
+\subsection{Conclusion}
+
+CEM performs really well on low-dim problems!
+Not covered in sutton although used widely as a benchmark in continuous control problems...
+
+\section{Policy Gradient}
+
+\subsection{Algorithm}
+
+Like in cross-entropy, the objective function we'd like to maximize is the expected value of the reward function:
+\begin{equation}
+  \eta(\theta) = R \log p(x|\theta)
+\end{equation}
+
+where $x = \{x_0, x_1, ..., x_t\}$ is a trajectory of state-action pairs and $R$ is the cumulative reward generated from those state-action pairs.
+\\
+
+The general policy gradient algorithm is shown below:
+\begin{algorithm}
+\caption{Policy Gradient}
+\begin{algorithmic}
+\\Initialize $\theta_0 \in \mathbb{R}^d$
+\\For iteration $i \in \{0,\ldots,k\}$:
+\\ \hspace*{4} Obtain a policy gradient estimator $g$ from rollouts
+\\ \hspace*{4} Apply the gradient update to $\theta$
+\end{algorithmic}
+\end{algorithm}
+
+where $g$ is an estimator of $\Delta_\theta E(R \log p(x|\theta_k))$.
+
+\subsection{The Policy Gradient Theorem}
+
+Since $p(x|\theta)$ is the joint probability of all state-action pairs over time, we can rewrite the reward function as:
+
+\begin{equation}
+  \eta(\theta) = R \log \prod_t \pi_{\theta}(a_t|s_t) = R \sum_t \log \pi_{\theta}(a_t|s_t)
+\end{equation}
+
+where $\pi_\theta(a_t|s_t)$ is a stochastic policy
+
+\begin{equation}
+  \eta(\theta) = \sum_a q_{\pi}(s,a) \pi_{\theta}(a|s)
+\end{equation}
+
+where $q_{\pi}(s,a)$ is the Q-function of 
+
+We write the expected value of the reward function as:
+
+\begin{equation}
+  E(\eta(\theta)) = \sum_s p_{\pi}(s) \sum_a q_{\pi}(s,a) \pi_{\theta}(a|s)
+\end{equation}
+
+\subsection{Likelihood Ratio Methods and REINFORCE}
+
+Over a trajectory of $t$ timesteps, we write the policy gradient estimator as:
+\begin{equation}
+  \Delta_\theta E( \log \Pi_t p(x_t|\theta_k) r_t) = E(\sum_{t=0}^{T-1} \Delta_\theta \log p(x_t|\theta_k) r_t)
+\end{equation}
+
+
+
+\subsection{Vanilla Policy Gradient Approaches}
+
+\subsection{Actor Critic Methods}
+
+\subsection{Conclusion}
+
+The main idea of policy gradient methods is that they learn a parameterized policy $\pi_\theta(a|s)$ that can select actions without consulting a value function during rollouts. This differs from methods like Q-learning where we directly use the value function to choose actions at each timestep.
+
+\section{Q-Learning}
+
+\subsection{The Bellman Equation}
+
+Instead of optimizing a policy $\pi(a|s;\theta)$ directly, Q-learning methods work by estimating the Q-function, that is an estimate of the value of a particular state-action pair. Once a Q-function is a estimated, we just choose the actions with the highest Q-value at each iteration. We can write this as:
+\begin{equation}
+  \pi(a|s) = \max_{a'}Q(s',a')
+\end{equation}
+
+Since we don't know the actions that lead to the highest rewards, we'll need to approximate this with the Bellman equation. The Bellman equation shows us that the maximum future reward for a state and action is the immediate reward plus discount maximum future reward for the next state:
+
+\begin{equation}
+  Q(s,a) = r + \gamma \max_{a'}Q(s',a')
+\end{equation}
+
+we discount the maximum future reward by some amount $\gamma$ since we're not completely certain that this estimate is actually true.
+\\
+
+We write the optimal Q-function as:
+
+\begin{equation}
+  Q_*(s,a) = E(r + \gamma \max_{a'}Q(s',a'))
+  = \sum_{s',r}p(s',r|s,a)(r + \gamma \max_{a'}Q(s',a'))
+\end{equation}
+
+The algorithm follows as such:
+
+\begin{algorithm}
+\caption{Q-Learning}
+\begin{algorithmic}
+\\For iteration $i \in \{0,\ldots,k\}$:
+\\ \hspace*{4} Choose an action $a$ based on the current policy $\pi(a_t|s_t)$
+\\ \hspace*{4} Recieve reward $r$ and new state $s'$
+\\ \hspace*{4} $Q(s,a) = Q(s,a) + \alpha(r + \gamma \max_{a'}Q(s',a') - Q(s,a))$
+\end{algorithmic}
+\end{algorithm}
+
+where $\max_{a'} Q(s',a')$ is the optimal action chosen by the current policy and $\alpha$ is an arbitrary learning rate we choose beforehand. If you look closely at the update step, the term on the righthand side is just the Bellman equation minus the current Q-function. So essentially, we're saying: here's a noisy approximate of what the Q-function is, which may be correct or completely wrong. We're going to update the current Q-function by how different this noisy approximator is from the current Q-function.
+\\
+
+So why does this work? Say we have a freshly initialized Q-function that gives 0 for every state-action pair. Now let's say we do Q-learning and at some point receive our first non-zero reward $r$ so we update our $Q$ function at the index $(s_i,a_j)$. Now suppose we do another iteration, and we get to a point where, if we choose $a_j$ our state will become $s_i$, eg. the state-action pair that yielded us the reward previously. This term will clearly max out $\max_{a'} (s',a')$, yielding another non-zero (albeit discounted) update to Q. If we carry out this pattern over some number of iterations, our Q-function learns to give high values for state-action pairs that lead to reward at some future timestep.
+\\
+
+For a more formal proof of convergence see: http://users.isr.ist.utl.pt/~mtjspaan/readingGroup/ProofQlearning.pdf
+
+\subsection{Deep Q-Learning}
+
+In Deep Q-Learning, our goal is to minimize the objective function:
+
+\begin{equation}
+r + \gamma max_{a'}Q(s',a'|\theta) - Q(s,a|\theta)
+\end{equation}
+
+with respect to $\theta$.
+
+E-greedy rollouts??
+\end{document}
+
+
+
