@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from . import utils
 
-class PolicyGradient(object):
+class VanillaActorCritic(object):
     def __init__(self,
                  env,
                  sess,

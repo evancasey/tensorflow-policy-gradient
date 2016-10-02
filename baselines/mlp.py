@@ -5,6 +5,9 @@ from __future__ import division
 import tensorflow as tf
 import numpy as np
 
+# TODO: Remove
+
+"""
 class MLPBaseline(object):
     def __init__(self,
                  network):
@@ -26,6 +29,8 @@ class MLPBaseline(object):
                              self.returns: returns })
 
         print("Baseline loss: ", loss)
+
+"""
         
 
 
